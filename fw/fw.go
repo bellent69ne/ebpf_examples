@@ -16,7 +16,6 @@ import (
 	"os"
 
 	bpf "github.com/iovisor/gobpf/bcc"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 
@@ -81,13 +80,13 @@ func start(c *cli.Context) {
 	if !c.Args().Present() {
 		err := cli.ShowSubcommandHelp(c)
 		if err != nil {
-			logrus.Fatal(err)
+			log.Fatal(err)
 		}
 		os.Exit(1)
 	}
 	blacklist, err := BlackListed()
 	if err != nil {
-		logrus.Fatal(err)
+		log.Fatal(err)
 	}
 	m := bpf.NewModule(Source, []string{
 		"-w",
@@ -117,14 +116,14 @@ func stop(c *cli.Context) {
 	if !c.Args().Present() {
 		err := cli.ShowSubcommandHelp(c)
 		if err != nil {
-			logrus.Fatal(err)
+			log.Fatal(err)
 		}
 		os.Exit(1)
 	}
 	m := bpf.Module{}
 	err := m.RemoveXDP(c.Args().First())
 	if err != nil {
-		logrus.Fatal(err)
+		log.Fatal(err)
 	}
 }
 
@@ -133,7 +132,7 @@ func stop(c *cli.Context) {
 // 	if !c.Args().Present() {
 // 		err := cli.ShowSubcommandHelp(c)
 // 		if err != nil {
-// 			logrus.Fatal(err)
+// 			log.Fatal(err)
 // 		}
 // 		os.Exit(1)
 // 	}
@@ -208,7 +207,7 @@ func main() {
 // 		m := bpf.Module{}
 // 		err := m.RemoveXDP(*ifname)
 // 		if err != nil {
-// 			logrus.Fatal(err)
+// 			log.Fatal(err)
 // 		}
 // 		return
 // 	}
@@ -262,18 +261,18 @@ func main() {
 // 	// if err != nil {
 // 	// 	log.Fatal(err)
 // 	// }
-// 	// logrus.Infoln(ip, ipNet)
-// 	// logrus.Infoln("ip len: ", len(ip))
+// 	// log.Infoln(ip, ipNet)
+// 	// log.Infoln("ip len: ", len(ip))
 // 	// for _, b := range ip {
 // 	// 	fmt.Printf("%v ", b)
 // 	// }
 // 	// fmt.Println()
-// 	// logrus.Infoln("ipNet ip len: ", len(ipNet.IP))
+// 	// log.Infoln("ipNet ip len: ", len(ipNet.IP))
 // 	// for _, b := range ipNet.IP {
 // 	// 	fmt.Printf("%v ", b)
 // 	// }
 // 	// fmt.Println()
-// 	// logrus.Infoln("ipNet mask len: ", len(ipNet.Mask))
+// 	// log.Infoln("ipNet mask len: ", len(ipNet.Mask))
 // 	// for _, b := range ipNet.Mask {
 // 	// 	fmt.Printf("%v ", b)
 // 	// }
@@ -282,6 +281,6 @@ func main() {
 // 	// i := int(ipNet.Mask[len(ipNet.Mask)-1]) << 1
 // 	// i := 255
 // 	// i = i << 1
-// 	// logrus.Infoln(i)
+// 	// log.Infoln(i)
 //
 // }

