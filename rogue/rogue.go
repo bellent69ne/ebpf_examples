@@ -22,52 +22,41 @@ import (
 type blackListRaw struct {
 	IPAddrs []string
 	Hosts   []string
-	Ports   []int
-}
-type BlackList struct {
-	IPAddrs []net.IP
-	Ports   []int
 }
 
-func BlackListed() (BlackList, error) {
+func BlackListed() ([]net.IP, error) {
 	f, err := os.Open("rogue_blacklist.json")
 	if err != nil {
-		return BlackList{}, err
+		return nil, err
 	}
 	var blr blackListRaw
 	err = json.NewDecoder(f).Decode(&blr)
 	if err != nil {
-		return BlackList{}, err
+		return nil, err
 	}
-	bl := BlackList{}
-	for _, p := range blr.Ports {
-		if p < 1 || p > 65536 {
-			return BlackList{}, fmt.Errorf("%d port must be between 1 and 65536", p)
-		}
-	}
-	bl.Ports = blr.Ports
+	ipAddrs := []net.IP{}
 	for _, addr := range blr.IPAddrs {
 		ip := net.ParseIP(addr).To4()
 		if ip == nil {
-			return BlackList{}, fmt.Errorf("%s is an IPv6 address, IPv4 address expected", addr)
+			return nil, fmt.Errorf("%s is an IPv6 address, IPv4 address expected", addr)
 		}
-		bl.IPAddrs = append(bl.IPAddrs, ip)
+		ipAddrs = append(ipAddrs, ip)
 	}
 	for _, host := range blr.Hosts {
 		addrs, err := net.LookupHost(host)
 		if err != nil {
-			return BlackList{}, err
+			return nil, err
 		}
 		fmt.Println(addrs)
 		for _, addr := range addrs {
 			ip := net.ParseIP(addr).To4()
 			if ip != nil {
 				fmt.Println(host, ip)
-				bl.IPAddrs = append(bl.IPAddrs, ip)
+				ipAddrs = append(ipAddrs, ip)
 			}
 		}
 	}
-	return bl, nil
+	return ipAddrs, nil
 }
 
 func start(c *cli.Context) {
@@ -78,7 +67,7 @@ func start(c *cli.Context) {
 		}
 		os.Exit(1)
 	}
-	blacklist, err := BlackListed()
+	ipAddrs, err := BlackListed()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -98,7 +87,7 @@ func start(c *cli.Context) {
 		log.Fatal(err)
 	}
 	subnets := bpf.NewTable(m.TableId("ipv4"), m)
-	for _, ip := range blacklist.IPAddrs {
+	for _, ip := range ipAddrs {
 		err := subnets.Set(ip[:], []byte{1})
 		if err != nil {
 			log.Fatal(err)
@@ -129,12 +118,12 @@ func main() {
 	app.Commands = []cli.Command{
 		{
 			Name:   "start",
-			Usage:  "starts filtering incoming traffic for the specified network interface",
+			Usage:  "start IFNAME",
 			Action: start,
 		},
 		{
 			Name:   "stop",
-			Usage:  "stops filtering incoming traffic for the specified network interface",
+			Usage:  "stop IFNAME",
 			Action: stop,
 		},
 	}

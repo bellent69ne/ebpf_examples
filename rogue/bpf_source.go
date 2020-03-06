@@ -9,95 +9,8 @@ const Source string = `
 #include <linux/if_vlan.h>
 #include <uapi/linux/tcp.h>
 
-// struct ipNet {
-// 	__be32 ip;
-// 	__be32 mask;
-// }
-
 BPF_HASH4(ipv4, __be32, unsigned char, 100000);
-// BPF_HASH4(addrs, __be32, long long int, 100000);
-// BPF_HASH4(ipAddrs, __be32, bool, 100000);
 BPF_HASH4(sPorts, __be16, bool, 65600);
-
-BPF_PERF_OUTPUT(trace);
-
-static inline bool addrMatched(struct iphdr *iph, int byteNum) {
-	__be32 saddr = iph->saddr;
-	// unsigned char *c = (unsigned char*) &saddr;
-	unsigned char *c = &saddr;
-	c = c + byteNum;
-	unsigned char t = *c ^ 0b00000001;
-	*c = *c & t;
-	unsigned char* cc = ipv4.lookup(&saddr);
-	if (cc) {
-		return true;
-	}
-	t = *c ^ 0b00000010;
-	*c = *c & t;
-	cc = ipv4.lookup(&saddr);
-	if (cc) {
-		return true;
-	}
-	t = *c ^ 0b00000100;
-	*c = *c & t;
-	cc = ipv4.lookup(&saddr);
-	if (cc) {
-		return true;
-	}
-	t = *c ^ 0b00001000;
-	*c = *c & t;
-	cc = ipv4.lookup(&saddr);
-	if (cc) {
-		return true;
-	}
-	t = *c ^ 0b00010000;
-	*c = *c & t;
-	cc = ipv4.lookup(&saddr);
-	if (cc) {
-		return true;
-	}
-	t = *c ^ 0b00100000;
-	*c = *c & t;
-	cc = ipv4.lookup(&saddr);
-	if (cc) {
-		return true;
-	}
-	t = *c ^ 0b01000000;
-	*c = *c & t;
-	cc = ipv4.lookup(&saddr);
-	if (cc) {
-		return true;
-	}
-	t = *c ^ 0b10000000;
-	*c = *c & t;
-	cc = ipv4.lookup(&saddr);
-	if (cc) {
-		return true;
-	}
-	return false;
-}
-
-static bool isFiltered(struct iphdr *iph) {
-	unsigned char *c = ipv4.lookup(&iph->saddr);
-	if (c) {
-		return true;
-	}
-	if (addrMatched(iph, 3)) {
-		return true;
-	}
-	if (addrMatched(iph, 2)) {
-		return true;
-	}
-	if (addrMatched(iph, 1)) {
-		return true;
-	}
-	if (addrMatched(iph, 0)) {
-		return true;
-	}
-	return false;
-}
-
-
 
 int filter(struct xdp_md *meta) {
 	void* data_end = (void*)(long)meta->data_end;
@@ -146,9 +59,6 @@ int filter(struct xdp_md *meta) {
 		if ((void*)&iph[1] > data_end) {
 			return XDP_DROP;
 		}
-		// if (isFiltered(iph)) {
-		// 	 return XDP_DROP;
-		// }
 		unsigned char *c = ipv4.lookup(&iph->saddr);
 		if (c) {
 			return XDP_DROP;

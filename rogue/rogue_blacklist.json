@@ -1,5 +1,4 @@
 {
-	"Hosts": ["yandex.by", "google.by", "facebook.by"],
-	"IPAddrs": [],
-	"Ports": []
+	"Hosts": ["yandex.by", "google.by", "vk.com"],
+	"IPAddrs": []
 }
